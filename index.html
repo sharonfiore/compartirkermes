@@ -379,6 +379,16 @@
 </div>
 
 <script>
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxHcw5Lw54vYxcN1wtKbBjY2ETkD2C94Dn8ST73R9n0qGhRG3Xm8XGxPU_NvxIyVF-a/exec';
+
+  async function llamarApi(parametros) {
+    const url = new URL(APPS_SCRIPT_URL);
+    Object.keys(parametros).forEach(clave => url.searchParams.set(clave, parametros[clave]));
+    const respuesta = await fetch(url.toString());
+    if (!respuesta.ok) throw new Error('Respuesta no válida del servidor');
+    return respuesta.json();
+  }
+
   const formulario = document.getElementById('formulario');
   const btnEnviar = document.getElementById('btnEnviar');
   const btnTexto = document.getElementById('btnTexto');
@@ -481,16 +491,16 @@
     mensaje.className = 'mensaje ' + tipo;
   }
 
-  function cargarLista(){
-    google.script.run
-      .withSuccessHandler(pintarLista)
-      .withFailureHandler(() => {
-        listaTarjetas.innerHTML = '<div class="vacio">No se pudo cargar la lista. Recarga la página.</div>';
-      })
-      .obtenerListado();
+  async function cargarLista(){
+    try {
+      const respuesta = await llamarApi({ action: 'listar' });
+      pintarLista(respuesta.listado || []);
+    } catch (err) {
+      listaTarjetas.innerHTML = '<div class="vacio">No se pudo cargar la lista. Recarga la página.</div>';
+    }
   }
 
-  formulario.addEventListener('submit', function(e){
+  formulario.addEventListener('submit', async function(e){
     e.preventDefault();
     mensaje.className = 'mensaje';
 
@@ -506,29 +516,28 @@
     spinner.style.display = 'inline-block';
     btnTexto.textContent = 'Guardando...';
 
-    google.script.run
-      .withSuccessHandler(function(respuesta){
-        btnEnviar.disabled = false;
-        spinner.style.display = 'none';
-        btnTexto.textContent = 'Confirmar mi aporte 🍴';
+    try {
+      const respuesta = await llamarApi({ action: 'registrar', nombres: nombres, comida: comida });
 
-        if (respuesta && respuesta.success){
-          mostrarMensaje('¡Listo! Ya quedó anotado tu aporte 🎉', 'ok');
-          formulario.reset();
-          pintarLista(respuesta.listado);
-          saltoEnCesta();
-          lanzarConfeti();
-        } else {
-          mostrarMensaje((respuesta && respuesta.error) || 'Algo salió mal, intenta de nuevo.', 'error');
-        }
-      })
-      .withFailureHandler(function(err){
-        btnEnviar.disabled = false;
-        spinner.style.display = 'none';
-        btnTexto.textContent = 'Confirmar mi aporte 🍴';
-        mostrarMensaje('Error de conexión, intenta de nuevo.', 'error');
-      })
-      .registrarComida(nombres, comida);
+      btnEnviar.disabled = false;
+      spinner.style.display = 'none';
+      btnTexto.textContent = 'Confirmar mi aporte 🍴';
+
+      if (respuesta && respuesta.success){
+        mostrarMensaje('¡Listo! Ya quedó anotado tu aporte 🎉', 'ok');
+        formulario.reset();
+        pintarLista(respuesta.listado);
+        saltoEnCesta();
+        lanzarConfeti();
+      } else {
+        mostrarMensaje((respuesta && respuesta.error) || 'Algo salió mal, intenta de nuevo.', 'error');
+      }
+    } catch (err) {
+      btnEnviar.disabled = false;
+      spinner.style.display = 'none';
+      btnTexto.textContent = 'Confirmar mi aporte 🍴';
+      mostrarMensaje('Error de conexión, intenta de nuevo.', 'error');
+    }
   });
 
   cargarLista();
