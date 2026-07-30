@@ -247,6 +247,12 @@
     text-align:center;
     color:#a9c1d0;
     font-size: 13px;
+    margin: 0 0 6px;
+  }
+  .seccion-lista p.pista{
+    text-align:center;
+    color:#7996a8;
+    font-size: 11.5px;
     margin: 0 0 18px;
   }
 
@@ -268,6 +274,10 @@
     opacity:0;
     transform: translateY(10px) rotate(var(--giro, 0deg));
     animation: entra-tarjeta 0.45s ease-out forwards;
+  }
+  .tarjeta-item.mia{
+    padding-top: 40px;
+    box-shadow: 0 10px 22px rgba(9,25,38,0.28), 0 0 0 2px var(--mostaza);
   }
   @keyframes entra-tarjeta{
     to{ opacity:1; transform: translateY(0) rotate(var(--giro, 0deg)); }
@@ -296,6 +306,92 @@
     text-transform: uppercase;
     letter-spacing: 0.4px;
   }
+  .etiqueta-mia{
+    color: var(--coral-oscuro);
+    font-weight: 800;
+  }
+
+  .acciones-tarjeta{
+    position:absolute;
+    top:10px;
+    right:10px;
+    display:flex;
+    gap:6px;
+  }
+  .btn-icono{
+    background:#fff;
+    border:1px solid #f0e4cf;
+    border-radius:9px;
+    width:28px;
+    height:28px;
+    font-size:13px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    box-shadow:0 2px 5px rgba(0,0,0,0.12);
+    transition: transform 0.12s ease;
+  }
+  .btn-icono:active{ transform: scale(0.88); }
+
+  /* Formulario de edición inline dentro de la tarjeta */
+  .form-edicion{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .label-mini{
+    font-size:10.5px;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    color: var(--coral-oscuro);
+    margin-top:2px;
+  }
+  .input-mini{
+    width:100%;
+    border:2px solid #ecdfc9;
+    background:#fffdf9;
+    border-radius:10px;
+    padding:8px 10px;
+    font-family:'Nunito', sans-serif;
+    font-size:13.5px;
+    color: var(--texto-oscuro);
+  }
+  textarea.input-mini{ min-height:52px; resize:vertical; }
+  .input-mini:focus{
+    outline:none;
+    border-color: var(--coral);
+    box-shadow: 0 0 0 3px rgba(255,107,91,0.15);
+  }
+  .botones-edicion{
+    display:flex;
+    gap:8px;
+    margin-top:2px;
+  }
+  .btn-mini{
+    flex:1;
+    border:none;
+    border-radius:10px;
+    padding:8px 10px;
+    font-family:'Baloo 2', sans-serif;
+    font-weight:700;
+    font-size:13px;
+    cursor:pointer;
+    background: linear-gradient(135deg, var(--coral), var(--coral-oscuro));
+    color:#fff;
+  }
+  .btn-mini-secundario{
+    background:#eef1f4;
+    color:#55606f;
+  }
+  .btn-mini:disabled{ opacity:0.7; }
+  .mensaje-mini{
+    font-size:11.5px;
+    margin-top:2px;
+    min-height: 14px;
+  }
+  .mensaje-mini-error{ color:#c73a2b; font-weight:700; }
 
   .vacio{
     text-align:center;
@@ -370,6 +466,7 @@
   <div class="seccion-lista">
     <h3>Lo que ya traerán 🥳</h3>
     <p class="desc">Se actualiza al instante con cada registro</p>
+    <p class="pista">✏️ y 🗑️ solo aparecen en tu propia tarjeta, en este mismo celular</p>
     <div class="grid-tarjetas" id="listaTarjetas">
       <div class="vacio">Cargando la mesa compartida...</div>
     </div>
@@ -379,7 +476,12 @@
 </div>
 
 <script>
+  // 👉 PEGA AQUÍ la URL de tu Apps Script (la que termina en /exec)
+  // La obtienes en Apps Script: Implementar > Nueva implementación > Aplicación web
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxHcw5Lw54vYxcN1wtKbBjY2ETkD2C94Dn8ST73R9n0qGhRG3Xm8XGxPU_NvxIyVF-a/exec';
+
+  // Clave para recordar, solo en este navegador/celular, cuáles registros son "míos"
+  const CLAVE_LOCAL = 'compartirParroquia_misAportes';
 
   async function llamarApi(parametros) {
     const url = new URL(APPS_SCRIPT_URL);
@@ -387,6 +489,26 @@
     const respuesta = await fetch(url.toString());
     if (!respuesta.ok) throw new Error('Respuesta no válida del servidor');
     return respuesta.json();
+  }
+
+  function obtenerMisIds(){
+    try {
+      const guardado = JSON.parse(localStorage.getItem(CLAVE_LOCAL));
+      return Array.isArray(guardado) ? guardado : [];
+    } catch (e){
+      return [];
+    }
+  }
+
+  function recordarMiId(id){
+    const ids = obtenerMisIds();
+    if (!ids.includes(id)) ids.push(id);
+    localStorage.setItem(CLAVE_LOCAL, JSON.stringify(ids));
+  }
+
+  function olvidarMiId(id){
+    const ids = obtenerMisIds().filter(existente => existente !== id);
+    localStorage.setItem(CLAVE_LOCAL, JSON.stringify(ids));
   }
 
   const formulario = document.getElementById('formulario');
@@ -397,6 +519,8 @@
   const listaTarjetas = document.getElementById('listaTarjetas');
   const contador = document.getElementById('contador');
   const cestaWrap = document.getElementById('cestaWrap');
+
+  let ultimoListado = [];
 
   const MAPA_EMOJI = [
     [/empanad|pastel|quiche|tarta salada/i, '🥟'],
@@ -443,35 +567,182 @@
     setTimeout(() => el.remove(), 900);
   }
 
-  function pintarLista(listado){
-    listaTarjetas.innerHTML = '';
-    actualizarContador(listado.length);
-
-    if (!listado.length){
-      listaTarjetas.innerHTML = '<div class="vacio">Todavía no hay nada anotado. ¡El formulario está esperando por ti! 👆</div>';
-      return;
-    }
-
-    listado.forEach((item, i) => {
-      const giro = (i % 2 === 0 ? -1.5 : 1.5);
-      const tarjeta = document.createElement('div');
-      tarjeta.className = 'tarjeta-item';
-      tarjeta.style.setProperty('--giro', giro + 'deg');
-      tarjeta.style.animationDelay = (i * 0.05) + 's';
-      tarjeta.innerHTML =
-        '<span class="emoji-comida">' + emojiPara(item.comida) + '</span>' +
-        '<div class="nombres">' + escaparHtml(item.nombres) + '</div>' +
-        '<div class="comida">' + escaparHtml(item.comida) + '</div>' +
-        '<div class="fecha">' + escaparHtml(item.fecha) + '</div>';
-      listaTarjetas.appendChild(tarjeta);
-    });
-  }
-
   function escaparHtml(str){
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
   }
+
+  function vistaTarjeta_(item, esMio){
+    const acciones = esMio
+      ? '<div class="acciones-tarjeta">' +
+          '<button type="button" class="btn-icono btn-editar" title="Editar mi aporte">✏️</button>' +
+          '<button type="button" class="btn-icono btn-borrar" title="Borrar mi aporte">🗑️</button>' +
+        '</div>'
+      : '';
+    const etiqueta = esMio ? ' · <span class="etiqueta-mia">tuyo</span>' : '';
+
+    return acciones +
+      '<span class="emoji-comida">' + emojiPara(item.comida) + '</span>' +
+      '<div class="nombres">' + escaparHtml(item.nombres) + '</div>' +
+      '<div class="comida">' + escaparHtml(item.comida) + '</div>' +
+      '<div class="fecha">' + escaparHtml(item.fecha) + etiqueta + '</div>';
+  }
+
+  function pintarLista(listado){
+    ultimoListado = listado || [];
+    listaTarjetas.innerHTML = '';
+    actualizarContador(ultimoListado.length);
+
+    if (!ultimoListado.length){
+      listaTarjetas.innerHTML = '<div class="vacio">Todavía no hay nada anotado. ¡El formulario está esperando por ti! 👆</div>';
+      return;
+    }
+
+    const misIds = obtenerMisIds();
+
+    ultimoListado.forEach((item, i) => {
+      const esMio = misIds.includes(item.id);
+      const giro = (i % 2 === 0 ? -1.5 : 1.5);
+      const tarjeta = document.createElement('div');
+      tarjeta.className = 'tarjeta-item' + (esMio ? ' mia' : '');
+      tarjeta.dataset.id = item.id;
+      tarjeta.dataset.nombres = item.nombres;
+      tarjeta.dataset.comida = item.comida;
+      tarjeta.style.setProperty('--giro', giro + 'deg');
+      tarjeta.style.animationDelay = (i * 0.05) + 's';
+      tarjeta.innerHTML = vistaTarjeta_(item, esMio);
+      listaTarjetas.appendChild(tarjeta);
+    });
+  }
+
+  function entrarModoEdicion(tarjeta){
+    const nombresActual = tarjeta.dataset.nombres;
+    const comidaActual = tarjeta.dataset.comida;
+
+    tarjeta.innerHTML = '';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'form-edicion';
+
+    const labelN = document.createElement('label');
+    labelN.className = 'label-mini';
+    labelN.textContent = 'Nombre(s)';
+
+    const inputN = document.createElement('input');
+    inputN.type = 'text';
+    inputN.className = 'input-mini campo-nombres-edicion';
+    inputN.maxLength = 150;
+    inputN.value = nombresActual;
+
+    const labelC = document.createElement('label');
+    labelC.className = 'label-mini';
+    labelC.textContent = '¿Qué traerás?';
+
+    const inputC = document.createElement('textarea');
+    inputC.className = 'input-mini campo-comida-edicion';
+    inputC.maxLength = 150;
+    inputC.value = comidaActual;
+
+    const botones = document.createElement('div');
+    botones.className = 'botones-edicion';
+
+    const btnGuardar = document.createElement('button');
+    btnGuardar.type = 'button';
+    btnGuardar.className = 'btn-mini btn-guardar-edicion';
+    btnGuardar.textContent = 'Guardar';
+
+    const btnCancelar = document.createElement('button');
+    btnCancelar.type = 'button';
+    btnCancelar.className = 'btn-mini btn-mini-secundario btn-cancelar-edicion';
+    btnCancelar.textContent = 'Cancelar';
+
+    const msgMini = document.createElement('div');
+    msgMini.className = 'mensaje-mini';
+
+    botones.appendChild(btnGuardar);
+    botones.appendChild(btnCancelar);
+    wrap.appendChild(labelN);
+    wrap.appendChild(inputN);
+    wrap.appendChild(labelC);
+    wrap.appendChild(inputC);
+    wrap.appendChild(botones);
+    wrap.appendChild(msgMini);
+    tarjeta.appendChild(wrap);
+
+    inputN.focus();
+  }
+
+  async function guardarEdicion(tarjeta){
+    const id = tarjeta.dataset.id;
+    const inputN = tarjeta.querySelector('.campo-nombres-edicion');
+    const inputC = tarjeta.querySelector('.campo-comida-edicion');
+    const msgMini = tarjeta.querySelector('.mensaje-mini');
+    const nombres = inputN.value.trim();
+    const comida = inputC.value.trim();
+
+    msgMini.className = 'mensaje-mini';
+
+    if (!nombres || !comida){
+      msgMini.textContent = 'Completa ambos campos.';
+      msgMini.classList.add('mensaje-mini-error');
+      return;
+    }
+
+    const btnGuardar = tarjeta.querySelector('.btn-guardar-edicion');
+    btnGuardar.disabled = true;
+    btnGuardar.textContent = 'Guardando...';
+
+    try {
+      const respuesta = await llamarApi({ action: 'editar', id: id, nombres: nombres, comida: comida });
+      if (respuesta && respuesta.success){
+        pintarLista(respuesta.listado);
+      } else {
+        msgMini.textContent = (respuesta && respuesta.error) || 'No se pudo guardar.';
+        msgMini.classList.add('mensaje-mini-error');
+        btnGuardar.disabled = false;
+        btnGuardar.textContent = 'Guardar';
+      }
+    } catch (err){
+      msgMini.textContent = 'Error de conexión, intenta de nuevo.';
+      msgMini.classList.add('mensaje-mini-error');
+      btnGuardar.disabled = false;
+      btnGuardar.textContent = 'Guardar';
+    }
+  }
+
+  async function confirmarBorrado(tarjeta){
+    const id = tarjeta.dataset.id;
+    const confirmado = window.confirm('¿Seguro que quieres borrar este aporte? No se puede deshacer.');
+    if (!confirmado) return;
+
+    try {
+      const respuesta = await llamarApi({ action: 'eliminar', id: id });
+      if (respuesta && respuesta.success){
+        olvidarMiId(id);
+        pintarLista(respuesta.listado);
+      } else {
+        alert((respuesta && respuesta.error) || 'No se pudo borrar el aporte.');
+      }
+    } catch (err){
+      alert('Error de conexión al borrar.');
+    }
+  }
+
+  listaTarjetas.addEventListener('click', function(e){
+    const tarjeta = e.target.closest('.tarjeta-item');
+    if (!tarjeta) return;
+
+    if (e.target.closest('.btn-editar')){
+      entrarModoEdicion(tarjeta);
+    } else if (e.target.closest('.btn-borrar')){
+      confirmarBorrado(tarjeta);
+    } else if (e.target.closest('.btn-guardar-edicion')){
+      guardarEdicion(tarjeta);
+    } else if (e.target.closest('.btn-cancelar-edicion')){
+      pintarLista(ultimoListado);
+    }
+  });
 
   function lanzarConfeti(){
     const colores = ['#ff6b5b', '#ffc857', '#06d6a0', '#12324a'];
@@ -526,6 +797,7 @@
       if (respuesta && respuesta.success){
         mostrarMensaje('¡Listo! Ya quedó anotado tu aporte 🎉', 'ok');
         formulario.reset();
+        if (respuesta.id) recordarMiId(respuesta.id);
         pintarLista(respuesta.listado);
         saltoEnCesta();
         lanzarConfeti();
